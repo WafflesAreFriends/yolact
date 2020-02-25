@@ -40,7 +40,7 @@ parser.add_argument('--start_iter', default=-1, type=int,
                          'determined from the file name.')
 parser.add_argument('--num_workers', default=4, type=int,
                     help='Number of workers used in dataloading')
-parser.add_argument('--cuda', default=True, type=str2bool,
+parser.add_argument('--cuda', default=False, type=str2bool,
                     help='Use CUDA to train model')
 parser.add_argument('--lr', '--learning_rate', default=None, type=float,
                     help='Initial learning rate. Leave as None to read this from the config.')
@@ -108,26 +108,14 @@ replace('momentum')
 # This is managed by set_lr
 cur_lr = args.lr
 
-if torch.cuda.device_count() == 0:
-    print('No GPUs detected. Exiting...')
-    exit(-1)
-
-if args.batch_size // torch.cuda.device_count() < 6:
+if args.batch_size < 6:
     if __name__ == '__main__':
         print('Per-GPU batch size is less than the recommended limit for batch norm. Disabling batch norm.')
     cfg.freeze_bn = True
 
 loss_types = ['B', 'C', 'M', 'P', 'D', 'E', 'S', 'I']
 
-if torch.cuda.is_available():
-    if args.cuda:
-        torch.set_default_tensor_type('torch.cuda.FloatTensor')
-    if not args.cuda:
-        print("WARNING: It looks like you have a CUDA device, but aren't " +
-              "using CUDA.\nRun with --cuda for optimal training speed.")
-        torch.set_default_tensor_type('torch.FloatTensor')
-else:
-    torch.set_default_tensor_type('torch.FloatTensor')
+torch.set_default_tensor_type('torch.FloatTensor')
 
 class NetLoss(nn.Module):
     """
@@ -226,12 +214,10 @@ def train():
             exit(-1)
 
     net = CustomDataParallel(NetLoss(net, criterion))
-    if args.cuda:
-        net = net.cuda()
     
     # Initialize everything
     if not cfg.freeze_bn: yolact_net.freeze_bn() # Freeze bn so we don't kill our means
-    yolact_net(torch.zeros(1, 3, cfg.max_size, cfg.max_size).cuda())
+    yolact_net(torch.zeros(1, 3, cfg.max_size, cfg.max_size))
     if not cfg.freeze_bn: yolact_net.freeze_bn(True)
 
     # loss counters
